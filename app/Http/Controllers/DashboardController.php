@@ -155,4 +155,59 @@ class DashboardController extends Controller
 
         return view('report', compact('logs', 'summary'));
     }
+    public function sensorDetails($type)
+    {
+        $validTypes = ['ph', 'temperature', 'turbidity'];
+        if (!in_array($type, $validTypes)) {
+            abort(404);
+        }
+
+        $logs = WaterQualityLog::orderBy('created_at', 'desc')->take(100)->get();
+        
+        // Fill with dummy data if empty (sames as report logic)
+        if ($logs->isEmpty()) {
+            $logs = collect();
+            for ($i = 20; $i >= 0; $i--) {
+                $log = new WaterQualityLog([
+                    'ph' => 7.0 + (rand(0, 4) / 10.0),
+                    'temperature' => 25.0 + (rand(0, 30) / 10.0),
+                    'tds' => 400 + rand(0, 100),
+                    'turbidity' => 3.0 + (rand(0, 20) / 10.0),
+                    'ec' => 1100 + rand(0, 200),
+                    'do' => 6.0 + (rand(0, 15) / 10.0),
+                ]);
+                $log->created_at = now()->subHours($i);
+                $logs->prepend($log);
+            }
+        }
+
+        $latest = $logs->first();
+        
+        $chartData = $logs->map(function ($log) use ($type) {
+            return [
+                'x' => $log->created_at->format('H:i'),
+                'y' => $log->$type
+            ];
+        })->reverse()->values();
+
+        $titles = [
+            'ph' => 'Tingkat Keasaman (pH)',
+            'temperature' => 'Suhu Cairan',
+            'turbidity' => 'Kekeruhan (Turbidity)'
+        ];
+
+        $units = [
+            'ph' => 'pH',
+            'temperature' => '°C',
+            'turbidity' => 'NTU'
+        ];
+
+        return view('sensor-details', [
+            'type' => $type,
+            'title' => $titles[$type],
+            'unit' => $units[$type],
+            'latest' => $latest,
+            'chartData' => $chartData
+        ]);
+    }
 }
